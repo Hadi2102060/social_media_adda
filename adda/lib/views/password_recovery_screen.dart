@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:adda/views/signin_screen.dart';
+import 'package:adda/login_screen.dart';
 
 class PasswordRecoveryScreen extends StatefulWidget {
   const PasswordRecoveryScreen({super.key});
@@ -146,7 +146,7 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen>
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => SigninScreen(),
+                      builder: (context) =>LoginScreen(isFromRecovery: true),
                     ),
                   );
                 },
@@ -454,7 +454,7 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen>
                                         Navigator.pushReplacement(
                                           context,
                                           MaterialPageRoute(
-                                            builder: (context) => SigninScreen(),
+                                            builder: (context) => LoginScreen(isFromRecovery: true),
                                           ),
                                         );
                                       },

@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "153080448097",
+    "project_id": "adda-aa69b",
+    "storage_bucket": "adda-aa69b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:153080448097:android:2afa117c820c188e5bd620",
+        "android_client_info": {
+          "package_name": "com.example.adda"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "153080448097-hdc11sp8og81igrl8n1cfijgl850iehv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.adda",
+            "certificate_hash": "94ad7bdcbccfb19c6c24cd075ca173840f299d6a"
+          }
+        },
+        {
+          "client_id": "153080448097-jtj0lvtlu6ukl3cd21hdlec4utbukfdf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBT17kFsZnMAg33x2TjrbYkm4zEx7569ZA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "153080448097-jtj0lvtlu6ukl3cd21hdlec4utbukfdf.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

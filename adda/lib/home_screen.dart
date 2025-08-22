@@ -1,18 +1,18 @@
-import 'package:flutter/material.dart';
-import 'dart:math';
-import 'package:adda/views/profile/profile_view.dart';
+import 'package:adda/login_screen.dart';
 import 'package:adda/views/content/camera_screen.dart';
-import 'package:adda/views/social/direct_messages_screen.dart';
-import 'package:adda/views/social/post_detail_screen.dart';
+import 'package:adda/views/feed/post_action_bar.dart';
+import 'package:adda/views/notifications/notifications_screen.dart';
+import 'package:adda/views/profile/privacy_settings.dart';
+import 'package:adda/views/profile/profile_edit.dart';
+import 'package:adda/views/profile/profile_view.dart';
 import 'package:adda/views/search/search_screen.dart';
-import 'package:adda/views/search/explore_screen.dart';
+import 'package:adda/views/social/messenger_screen.dart';
+import 'package:adda/views/social/post_detail_screen.dart';
 import 'package:adda/views/stories/story_creation_screen.dart';
 import 'package:adda/views/stories/story_viewer_screen.dart';
-import 'package:adda/views/notifications/notifications_screen.dart';
-import 'feed/post_action_bar.dart';
-import 'package:adda/views/social/messenger_screen.dart'; // Added import for MessengerScreen
-import 'package:adda/views/profile/profile_edit.dart'; // Added import for ProfileEdit
-import 'package:adda/views/profile/privacy_settings.dart'; // Added import for PrivacySettings
+import 'package:flutter/material.dart';
+
+// Added import for PrivacySettings
 
 // Placeholder screens for menu
 class SettingsScreen extends StatelessWidget {
@@ -275,13 +275,20 @@ class _MySocialHomepageState extends State<MySocialHomepage>
 
   // Trending topics
   final List<String> trending = [
-    "#Flutter",
-    "#CampusLife",
-    "#Travel",
-    "#Foodie",
-    "#TechTalk",
-    "#Music",
-    "#Art",
+    // "#Flutter",
+    // "#CampusLife",
+    // "#Travel",
+    // "#Foodie",
+    // "#TechTalk",
+    // "#Music",
+    // "#Art",
+    "Music",
+    "Arts",
+    "Sports",
+    "Fashion",
+    "Gaming",
+    "Books",
+    "Memes",
   ];
   int selectedTrending = 0;
 
@@ -358,6 +365,14 @@ class _MySocialHomepageState extends State<MySocialHomepage>
               ),
               child: Row(
                 children: [
+                  Image.asset(
+                    'assets/logo2.png', // Update with your logo's path
+                    height: 50, // Adjust height as needed
+                    width: 50, // Adjust width as needed
+                    fit: BoxFit.contain,
+                  ),
+
+                  SizedBox(width: 12),
                   FadeTransition(
                     opacity: _greetingAnimation,
                     child: Text(
@@ -424,9 +439,13 @@ class _MySocialHomepageState extends State<MySocialHomepage>
                         );
                       } else if (value == 'logout') {
                         // You can add your logout logic here
-                        Navigator.of(
+                        Navigator.push(
                           context,
-                        ).popUntil((route) => route.isFirst);
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                LoginScreen(isFromRecovery: true),
+                          ),
+                        );
                       }
                     },
                     itemBuilder: (context) => [
@@ -932,9 +951,9 @@ class _FeedCardState extends State<FeedCard> {
   Widget build(BuildContext context) {
     // Filter by trending topic (simple hashtag match)
     if (!widget.post['caption'].contains(
-          widget.trendingFilter.replaceAll('#', ''),
+          widget.trendingFilter.replaceAll('', ''),
         ) &&
-        widget.trendingFilter != "#Flutter") {
+        widget.trendingFilter != "Music") {
       return SizedBox.shrink();
     }
     return AnimatedContainer(
