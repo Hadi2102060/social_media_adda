@@ -195,6 +195,8 @@ class _MySocialHomepageState extends State<MySocialHomepage>
             // Stories Row
             _storiesRow(),
 
+            _liveStreamsSection(),
+
             // Posts Section - SIMPLIFIED QUERY
             StreamBuilder<QuerySnapshot>(
               stream: _firestore
@@ -373,8 +375,8 @@ class _MySocialHomepageState extends State<MySocialHomepage>
             );
           },
         ),
-        _circleIcon(
-          icon: Icons.message,
+        _circleIconWithImage(
+          imagePath: 'assets/messenger.png', // আপনার image path
           onTap: () {
             Navigator.push(
               context,
@@ -383,6 +385,38 @@ class _MySocialHomepageState extends State<MySocialHomepage>
           },
         ),
       ],
+    );
+  }
+
+  // New method for image icon
+  Widget _circleIconWithImage({
+    required String imagePath,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.15),
+            shape: BoxShape.circle,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(6.0),
+            child: Image.asset(
+              imagePath,
+
+              
+              //color: Colors.white, // যদি white color চান
+              fit: BoxFit.contain,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -469,10 +503,10 @@ class _MySocialHomepageState extends State<MySocialHomepage>
               Row(
                 children: [
                   _composerAction(
-                    icon: Icons.video_call,
+                    icon: Icons.video_camera_front_rounded, // Better live icon
                     label: "Live",
                     onTap: () {
-                      _toast("Live feature coming soon!");
+                      _startLiveStream(); // New live stream function
                     },
                   ),
                   _composerAction(
@@ -500,6 +534,555 @@ class _MySocialHomepageState extends State<MySocialHomepage>
       },
     );
   }
+
+  //...............start live stream ............................
+
+  // Add this method in _MySocialHomepageState class
+  void _startLiveStream() async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return;
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Text("Starting Live Stream"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text("Preparing your live stream..."),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      // Get user data
+      final userDoc = await _firestore
+          .collection('users')
+          .doc(currentUser.uid)
+          .get();
+      final userData = userDoc.data() as Map<String, dynamic>?;
+
+      // Create live stream document
+      final liveStreamRef = _firestore.collection('liveStreams').doc();
+
+      await liveStreamRef.set({
+        'streamId': liveStreamRef.id,
+        'userId': currentUser.uid,
+        'username': userData?['username'] ?? 'User',
+        'userImage': userData?['profileImage'] ?? '',
+        'title': '${userData?['username'] ?? 'User'}\'s Live Stream',
+        'viewers': 0,
+        'isLive': true,
+        'startedAt': FieldValue.serverTimestamp(),
+        'thumbnail': userData?['profileImage'] ?? '',
+      });
+
+      // Close loading dialog
+      Navigator.pop(context);
+
+      // Show success message and navigate to live screen
+      _showLiveStreamStarted(liveStreamRef.id);
+    } catch (e) {
+      // Close loading dialog
+      Navigator.pop(context);
+
+      _toast("Failed to start live stream: $e");
+    }
+  }
+
+  void _showLiveStreamStarted(String streamId) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return Container(
+          margin: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: kCard,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 20,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Success Icon
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.live_tv_rounded,
+                    size: 40,
+                    color: Colors.green,
+                  ),
+                ),
+
+                SizedBox(height: 20),
+
+                // Title
+                Text(
+                  "You're Live!",
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+
+                SizedBox(height: 8),
+
+                // Description
+                Text(
+                  "Your live stream has started. Share it with your friends!",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                ),
+
+                SizedBox(height: 24),
+
+                // Action Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _shareLiveStream(streamId);
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: kBlue,
+                          side: BorderSide(color: kBlue),
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.share, size: 20),
+                            SizedBox(width: 8),
+                            Text("Share"),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    SizedBox(width: 12),
+
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _goToLiveStream(streamId);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.live_tv_rounded, size: 20),
+                            SizedBox(width: 8),
+                            Text("Go Live"),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                SizedBox(height: 12),
+
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _stopLiveStream(streamId);
+                  },
+                  child: Text(
+                    "End Stream",
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _shareLiveStream(String streamId) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return Container(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "Share Live Stream",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 16),
+              ListTile(
+                leading: Icon(Icons.group, color: kBlue),
+                title: Text("Share to Feed"),
+                onTap: () {
+                  Navigator.pop(context);
+                  _toast("Live stream shared to feed");
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.message, color: kBlue),
+                title: Text("Share via Direct Message"),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DirectMessagesScreen(),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.link, color: kBlue),
+                title: Text("Copy Link"),
+                onTap: () {
+                  Navigator.pop(context);
+                  _toast("Live stream link copied");
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _goToLiveStream(String streamId) {
+    // Here you would navigate to the actual live stream screen
+    // For now, show a demo screen
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Live Stream"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: double.infinity,
+              height: 200,
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.live_tv_rounded, size: 50, color: Colors.red),
+                  SizedBox(height: 16),
+                  Text(
+                    "LIVE STREAM",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    "Stream ID: $streamId",
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 16),
+            Text("This is where your live stream would appear"),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("Close"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _stopLiveStream(String streamId) async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("End Live Stream"),
+        content: Text("Are you sure you want to end your live stream?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+
+              try {
+                await _firestore.collection('liveStreams').doc(streamId).update(
+                  {'isLive': false, 'endedAt': FieldValue.serverTimestamp()},
+                );
+                _toast("Live stream ended");
+              } catch (e) {
+                _toast("Error ending live stream: $e");
+              }
+            },
+            child: Text("End Stream", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Add this widget in the ListView children after _storiesRow()
+  Widget _liveStreamsSection() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore
+          .collection('liveStreams')
+          .where('isLive', isEqualTo: true)
+          .orderBy('startedAt', descending: true)
+          .limit(10)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return SizedBox.shrink(); // Hide if no live streams
+        }
+
+        final liveStreams = snapshot.data!.docs;
+
+        return Container(
+          color: kCard,
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Icon(Icons.live_tv_rounded, color: Colors.red, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      "Live Now",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Spacer(),
+                    Text(
+                      "${liveStreams.length} live",
+                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 12),
+              Container(
+                height: 120,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  itemCount: liveStreams.length,
+                  itemBuilder: (context, index) {
+                    final stream =
+                        liveStreams[index].data() as Map<String, dynamic>;
+                    return _liveStreamCard(stream);
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _liveStreamCard(Map<String, dynamic> stream) {
+    return Container(
+      width: 200,
+      margin: EdgeInsets.only(right: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          // Stream thumbnail
+          Expanded(
+            child: Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+                  child:
+                      stream['thumbnail'] != null &&
+                          stream['thumbnail'].isNotEmpty
+                      ? Image.network(
+                          stream['thumbnail'],
+                          width: double.infinity,
+                          height: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: Colors.grey[300],
+                              child: Icon(Icons.person, color: Colors.grey),
+                            );
+                          },
+                        )
+                      : Container(
+                          color: Colors.grey[300],
+                          child: Icon(
+                            Icons.person,
+                            size: 40,
+                            color: Colors.grey,
+                          ),
+                        ),
+                ),
+
+                // Live badge
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.circle, size: 8, color: Colors.white),
+                        SizedBox(width: 4),
+                        Text(
+                          "LIVE",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Viewers count
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.remove_red_eye,
+                          size: 12,
+                          color: Colors.white,
+                        ),
+                        SizedBox(width: 2),
+                        Text(
+                          "${stream['viewers'] ?? 0}",
+                          style: TextStyle(color: Colors.white, fontSize: 10),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Stream info
+          Container(
+            padding: EdgeInsets.all(8),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 12,
+                  backgroundImage:
+                      stream['userImage'] != null &&
+                          stream['userImage'].isNotEmpty
+                      ? NetworkImage(stream['userImage'])
+                      : null,
+                  child:
+                      stream['userImage'] == null || stream['userImage'].isEmpty
+                      ? Icon(Icons.person, size: 12)
+                      : null,
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        stream['username'] ?? 'User',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        stream['title'] ?? 'Live Stream',
+                        style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  //...........................................end of live stream..........................................
 
   Widget _composerAction({
     required IconData icon,
@@ -747,9 +1330,6 @@ class _MySocialHomepageState extends State<MySocialHomepage>
     setState(() => _selectedIndex = index);
   }
 }
-
-
-
 
 // FeedCard and _Reaction classes with base64 image support
 class FeedCard extends StatefulWidget {
