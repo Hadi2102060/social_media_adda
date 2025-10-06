@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:convert';
 
 class PeopleScreen extends StatefulWidget {
   const PeopleScreen({super.key});
@@ -14,33 +16,10 @@ class _PeopleScreenState extends State<PeopleScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   String? _currentUserId;
 
-  // Track which users have pending sent requests
-  final Set<String> _pendingRequests = {};
-
   @override
   void initState() {
     super.initState();
     _currentUserId = _auth.currentUser?.uid;
-    _loadPendingRequests();
-  }
-
-  // Load existing pending requests
-  Future<void> _loadPendingRequests() async {
-    if (_currentUserId == null) return;
-
-    try {
-      final sentRequestsSnapshot = await _firestore
-          .collection('users')
-          .doc(_currentUserId)
-          .collection('sentRequests')
-          .get();
-
-      setState(() {
-        _pendingRequests.addAll(sentRequestsSnapshot.docs.map((doc) => doc.id));
-      });
-    } catch (e) {
-      print('Error loading pending requests: $e');
-    }
   }
 
   // Stream for friend requests (users who sent request to current user)
@@ -55,8 +34,8 @@ class _PeopleScreenState extends State<PeopleScreen> {
         .snapshots();
   }
 
-  // Stream for suggested friends (users who are not friends and haven't sent/received requests)
-  Stream<List<DocumentSnapshot>> _getSuggestedFriends() {
+  // Stream for suggested friends (users who are not friends)
+  Stream<List<Map<String, dynamic>>> _getSuggestedFriends() {
     if (_currentUserId == null) return Stream.value([]);
 
     return _firestore.collection('users').snapshots().asyncMap((
@@ -70,13 +49,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
             .collection('friends')
             .get();
 
-        // Get current user's friend requests (both sent and received)
-        final receivedRequestsSnapshot = await _firestore
-            .collection('users')
-            .doc(_currentUserId)
-            .collection('friendRequests')
-            .get();
-
+        // Get current user's sent requests
         final sentRequestsSnapshot = await _firestore
             .collection('users')
             .doc(_currentUserId)
@@ -85,24 +58,28 @@ class _PeopleScreenState extends State<PeopleScreen> {
 
         // Get list of user IDs to exclude
         final friendIds = friendsSnapshot.docs.map((doc) => doc.id).toSet();
-        final receivedRequestIds = receivedRequestsSnapshot.docs
-            .map((doc) => doc.id)
-            .toSet();
         final sentRequestIds = sentRequestsSnapshot.docs
             .map((doc) => doc.id)
             .toSet();
 
-        final excludedIds = {
-          ...friendIds,
-          ...receivedRequestIds,
-          ...sentRequestIds,
-          _currentUserId!,
-        };
+        final excludedIds = {...friendIds, _currentUserId!};
 
-        // Filter out excluded users from all users
-        final suggestedUsers = allUsersSnapshot.docs.where((userDoc) {
-          return !excludedIds.contains(userDoc.id);
-        }).toList();
+        // Filter and map users with their request status
+        final suggestedUsers = allUsersSnapshot.docs
+            .where((userDoc) {
+              return !excludedIds.contains(userDoc.id);
+            })
+            .map((userDoc) {
+              final userData = userDoc.data() as Map<String, dynamic>;
+              final isRequestSent = sentRequestIds.contains(userDoc.id);
+
+              return {
+                'id': userDoc.id,
+                'data': userData,
+                'isRequestSent': isRequestSent,
+              };
+            })
+            .toList();
 
         return suggestedUsers;
       } catch (e) {
@@ -117,6 +94,22 @@ class _PeopleScreenState extends State<PeopleScreen> {
     if (_currentUserId == null) return;
 
     try {
+      // Show immediate loading state
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+              SizedBox(width: 10),
+              Text('Sending request...'),
+            ],
+          ),
+          backgroundColor: Colors.blue,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+
       // Add to target user's friendRequests collection
       await _firestore
           .collection('users')
@@ -141,27 +134,24 @@ class _PeopleScreenState extends State<PeopleScreen> {
             'targetId': targetUserId,
           });
 
-      // Update local state to show "Request Sent"
-      setState(() {
-        _pendingRequests.add(targetUserId);
-      });
-
+      // Success message
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Friend request sent!'),
+          content: Text('Friend request sent successfully!'),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
+          duration: Duration(seconds: 2),
         ),
       );
     } catch (e) {
       print('Error sending friend request: $e');
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to send request'),
           backgroundColor: Colors.red,
+          duration: Duration(seconds: 2),
         ),
       );
     }
@@ -270,7 +260,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
   // Remove suggested friend (just hide from current view)
   void _removeSuggestedFriend(String userId) {
     // For now, we'll just refresh the UI by setting state
-    // In a real app, you might want to store hidden suggestions in Firestore
     setState(() {});
   }
 
@@ -279,6 +268,22 @@ class _PeopleScreenState extends State<PeopleScreen> {
     if (_currentUserId == null) return;
 
     try {
+      // Show immediate loading state
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+              SizedBox(width: 10),
+              Text('Cancelling request...'),
+            ],
+          ),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+
       // Remove from target user's friendRequests
       await _firestore
           .collection('users')
@@ -295,23 +300,23 @@ class _PeopleScreenState extends State<PeopleScreen> {
           .doc(targetUserId)
           .delete();
 
-      // Update local state
-      setState(() {
-        _pendingRequests.remove(targetUserId);
-      });
-
+      // Success message
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Friend request cancelled'),
           backgroundColor: Colors.blue,
+          duration: Duration(seconds: 2),
         ),
       );
     } catch (e) {
       print('Error cancelling friend request: $e');
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to cancel request'),
           backgroundColor: Colors.red,
+          duration: Duration(seconds: 2),
         ),
       );
     }
@@ -448,26 +453,21 @@ class _PeopleScreenState extends State<PeopleScreen> {
                             builder: (context, userSnapshot) {
                               if (userSnapshot.connectionState ==
                                   ConnectionState.waiting) {
-                                return FriendRequestItem(
-                                  name: 'Loading...',
-                                  mutualFriends: 0,
-                                  isRequest: true,
-                                  isRequestSent: false,
-                                  onConfirm: () {},
-                                  onDelete: () {},
-                                  onCancel: () {},
-                                );
+                                return _buildLoadingItem();
                               }
 
                               if (!userSnapshot.hasData ||
                                   !userSnapshot.data!.exists) {
-                                return SizedBox(); // Skip if user doesn't exist
+                                return SizedBox();
                               }
 
                               final userData =
                                   userSnapshot.data!.data()
                                       as Map<String, dynamic>;
                               final name = userData['name'] ?? 'Unknown User';
+                              final profileImageUrl = _getProfileImageUrl(
+                                userData,
+                              );
 
                               return FutureBuilder<int>(
                                 future: _getMutualFriendsCount(request.id),
@@ -484,7 +484,8 @@ class _PeopleScreenState extends State<PeopleScreen> {
                                         _acceptFriendRequest(request.id),
                                     onDelete: () =>
                                         _rejectFriendRequest(request.id),
-                                    onCancel: () {}, // Not used for requests
+                                    onCancel: () {},
+                                    profileImageUrl: profileImageUrl,
                                   );
                                 },
                               );
@@ -496,7 +497,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                   ),
 
                   // Suggested Friends Section
-                  StreamBuilder<List<DocumentSnapshot>>(
+                  StreamBuilder<List<Map<String, dynamic>>>(
                     stream: _getSuggestedFriends(),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
@@ -556,16 +557,15 @@ class _PeopleScreenState extends State<PeopleScreen> {
                       return ListView.builder(
                         itemCount: suggestedUsers.length,
                         itemBuilder: (context, index) {
-                          final userDoc = suggestedUsers[index];
-                          final userData =
-                              userDoc.data() as Map<String, dynamic>;
+                          final userInfo = suggestedUsers[index];
+                          final userDocId = userInfo['id'];
+                          final userData = userInfo['data'];
+                          final isRequestSent = userInfo['isRequestSent'];
                           final name = userData['name'] ?? 'Unknown User';
-                          final isRequestSent = _pendingRequests.contains(
-                            userDoc.id,
-                          );
+                          final profileImageUrl = _getProfileImageUrl(userData);
 
                           return FutureBuilder<int>(
-                            future: _getMutualFriendsCount(userDoc.id),
+                            future: _getMutualFriendsCount(userDocId),
                             builder: (context, mutualSnapshot) {
                               final mutualFriends = mutualSnapshot.data ?? 0;
 
@@ -574,11 +574,11 @@ class _PeopleScreenState extends State<PeopleScreen> {
                                 mutualFriends: mutualFriends,
                                 isRequest: false,
                                 isRequestSent: isRequestSent,
-                                onConfirm: () => _sendFriendRequest(userDoc.id),
+                                onConfirm: () => _sendFriendRequest(userDocId),
                                 onDelete: () =>
-                                    _removeSuggestedFriend(userDoc.id),
-                                onCancel: () =>
-                                    _cancelFriendRequest(userDoc.id),
+                                    _removeSuggestedFriend(userDocId),
+                                onCancel: () => _cancelFriendRequest(userDocId),
+                                profileImageUrl: profileImageUrl,
                               );
                             },
                           );
@@ -594,6 +594,72 @@ class _PeopleScreenState extends State<PeopleScreen> {
       ),
     );
   }
+
+  // Helper function to get profile image URL from user data
+  String? _getProfileImageUrl(Map<String, dynamic> userData) {
+    // Check multiple possible field names for profile image
+    final possibleImageFields = [
+      'profileImage',
+      'photoURL',
+      'imageUrl',
+      'image',
+      'avatar',
+      'profilePicture',
+      'photoUrl',
+      'picture',
+    ];
+
+    for (final field in possibleImageFields) {
+      if (userData.containsKey(field) &&
+          userData[field] != null &&
+          userData[field].toString().isNotEmpty) {
+        return userData[field].toString();
+      }
+    }
+
+    return null;
+  }
+
+  Widget _buildLoadingItem() {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            blurRadius: 2,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              shape: BoxShape.circle,
+            ),
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(width: 100, height: 16, color: Colors.grey[300]),
+                SizedBox(height: 8),
+                Container(width: 80, height: 14, color: Colors.grey[200]),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class FriendRequestItem extends StatelessWidget {
@@ -604,6 +670,7 @@ class FriendRequestItem extends StatelessWidget {
   final VoidCallback onConfirm;
   final VoidCallback onDelete;
   final VoidCallback onCancel;
+  final String? profileImageUrl;
 
   const FriendRequestItem({
     super.key,
@@ -614,6 +681,7 @@ class FriendRequestItem extends StatelessWidget {
     required this.onConfirm,
     required this.onDelete,
     required this.onCancel,
+    required this.profileImageUrl,
   });
 
   @override
@@ -636,16 +704,8 @@ class FriendRequestItem extends StatelessWidget {
         children: [
           Row(
             children: [
-              // Profile Avatar
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.person, color: Colors.grey, size: 30),
-              ),
+              // Profile Avatar with actual image - FIXED for base64 images
+              _buildProfileImage(),
               const SizedBox(width: 12),
 
               // Name and Mutual Friends
@@ -659,6 +719,8 @@ class FriendRequestItem extends StatelessWidget {
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -677,14 +739,89 @@ class FriendRequestItem extends StatelessWidget {
 
           // Buttons - Different states based on request type and status
           if (isRequest)
-            // Friend Request Buttons (Confirm/Delete)
             _buildRequestButtons()
           else
-            // Suggested Friend Buttons (Add Friend/Request Sent)
             _buildSuggestedFriendButtons(),
         ],
       ),
     );
+  }
+
+  Widget _buildProfileImage() {
+    return Container(
+      width: 60,
+      height: 60,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.grey.shade300, width: 1),
+      ),
+      child: ClipOval(child: _buildImageWidget()),
+    );
+  }
+
+  Widget _buildImageWidget() {
+    if (profileImageUrl == null || profileImageUrl!.isEmpty) {
+      return Container(
+        color: Colors.grey[300],
+        child: const Icon(Icons.person, color: Colors.grey, size: 30),
+      );
+    }
+
+    // Check if it's a base64 data URL
+    if (profileImageUrl!.startsWith('data:image/')) {
+      try {
+        // Extract base64 data from data URL
+        final base64Data = profileImageUrl!.split(',').last;
+        final imageBytes = base64.decode(base64Data);
+
+        return Image.memory(
+          imageBytes,
+          width: 60,
+          height: 60,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            print('Error loading base64 image: $error');
+            return Container(
+              color: Colors.grey[300],
+              child: const Icon(Icons.person, color: Colors.grey, size: 30),
+            );
+          },
+        );
+      } catch (e) {
+        print('Error decoding base64 image: $e');
+        return Container(
+          color: Colors.grey[300],
+          child: const Icon(Icons.person, color: Colors.grey, size: 30),
+        );
+      }
+    }
+    // Regular HTTP/HTTPS URL
+    else if (profileImageUrl!.startsWith('http')) {
+      return CachedNetworkImage(
+        imageUrl: profileImageUrl!,
+        width: 60,
+        height: 60,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => Container(
+          color: Colors.grey[300],
+          child: const Icon(Icons.person, color: Colors.grey, size: 30),
+        ),
+        errorWidget: (context, url, error) {
+          print('Error loading network image: $error');
+          return Container(
+            color: Colors.grey[300],
+            child: const Icon(Icons.person, color: Colors.grey, size: 30),
+          );
+        },
+      );
+    }
+    // Invalid URL format
+    else {
+      return Container(
+        color: Colors.grey[300],
+        child: const Icon(Icons.person, color: Colors.grey, size: 30),
+      );
+    }
   }
 
   Widget _buildRequestButtons() {
@@ -699,8 +836,12 @@ class FriendRequestItem extends StatelessWidget {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(6),
               ),
+              padding: const EdgeInsets.symmetric(vertical: 12),
             ),
-            child: const Text('Confirm', style: TextStyle(fontSize: 14)),
+            child: const Text(
+              'Confirm',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            ),
           ),
         ),
         const SizedBox(width: 8),
@@ -708,13 +849,17 @@ class FriendRequestItem extends StatelessWidget {
           child: OutlinedButton(
             onPressed: onDelete,
             style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.grey,
+              foregroundColor: Colors.grey[700],
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(6),
               ),
-              side: BorderSide(color: Colors.grey.shade300),
+              side: BorderSide(color: Colors.grey.shade400),
+              padding: const EdgeInsets.symmetric(vertical: 12),
             ),
-            child: const Text('Delete', style: TextStyle(fontSize: 14)),
+            child: const Text(
+              'Delete',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            ),
           ),
         ),
       ],
@@ -723,41 +868,28 @@ class FriendRequestItem extends StatelessWidget {
 
   Widget _buildSuggestedFriendButtons() {
     if (isRequestSent) {
-      // Request Sent State
       return Row(
         children: [
           Expanded(
-            child: OutlinedButton.icon(
-              onPressed: onCancel,
-              icon: Icon(Icons.pending, size: 16),
-              label: Text('Request Sent', style: TextStyle(fontSize: 14)),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.orange,
-                side: BorderSide(color: Colors.orange.shade300),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
             child: OutlinedButton(
-              onPressed: onDelete,
+              onPressed: onCancel,
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.grey,
+                foregroundColor: Colors.grey[700],
+                side: BorderSide(color: Colors.grey.shade400),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(6),
                 ),
-                side: BorderSide(color: Colors.grey.shade300),
+                padding: const EdgeInsets.symmetric(vertical: 12),
               ),
-              child: const Text('Remove', style: TextStyle(fontSize: 14)),
+              child: const Text(
+                'Cancel Request',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
             ),
           ),
         ],
       );
     } else {
-      // Add Friend State
       return Row(
         children: [
           Expanded(
@@ -769,8 +901,12 @@ class FriendRequestItem extends StatelessWidget {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(6),
                 ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
               ),
-              child: const Text('Add Friend', style: TextStyle(fontSize: 14)),
+              child: const Text(
+                'Add Friend',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -778,13 +914,17 @@ class FriendRequestItem extends StatelessWidget {
             child: OutlinedButton(
               onPressed: onDelete,
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.grey,
+                foregroundColor: Colors.grey[700],
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(6),
                 ),
-                side: BorderSide(color: Colors.grey.shade300),
+                side: BorderSide(color: Colors.grey.shade400),
+                padding: const EdgeInsets.symmetric(vertical: 12),
               ),
-              child: const Text('Remove', style: TextStyle(fontSize: 14)),
+              child: const Text(
+                'Remove',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
             ),
           ),
         ],

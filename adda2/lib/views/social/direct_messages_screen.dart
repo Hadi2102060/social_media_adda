@@ -90,45 +90,34 @@ class _DirectMessagesScreenState extends State<DirectMessagesScreen>
   @override
   void initState() {
     super.initState();
-    
+
     _fadeController = AnimationController(
       duration: Duration(milliseconds: 1500),
       vsync: this,
     );
-    
+
     _slideController = AnimationController(
       duration: Duration(milliseconds: 800),
       vsync: this,
     );
-    
+
     _backgroundController = AnimationController(
       duration: Duration(seconds: 7),
       vsync: this,
     );
 
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _fadeController,
-      curve: Curves.easeInOut,
-    ));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _fadeController, curve: Curves.easeInOut),
+    );
 
-    _slideAnimation = Tween<Offset>(
-      begin: Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _slideController,
-      curve: Curves.easeOutCubic,
-    ));
+    _slideAnimation = Tween<Offset>(begin: Offset(0, 0.3), end: Offset.zero)
+        .animate(
+          CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic),
+        );
 
-    _backgroundAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _backgroundController,
-      curve: Curves.easeInOut,
-    ));
+    _backgroundAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _backgroundController, curve: Curves.easeInOut),
+    );
 
     _fadeController.forward();
     _slideController.forward();
@@ -148,9 +137,13 @@ class _DirectMessagesScreenState extends State<DirectMessagesScreen>
     if (_searchQuery.isEmpty) {
       return conversations;
     }
-    return conversations.where((conversation) =>
-      conversation['username'].toLowerCase().contains(_searchQuery.toLowerCase())
-    ).toList();
+    return conversations
+        .where(
+          (conversation) => conversation['username'].toLowerCase().contains(
+            _searchQuery.toLowerCase(),
+          ),
+        )
+        .toList();
   }
 
   @override
@@ -168,10 +161,26 @@ class _DirectMessagesScreenState extends State<DirectMessagesScreen>
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Color.lerp(Colors.pink.shade400, Colors.pink.shade500, _backgroundAnimation.value)!,
-                      Color.lerp(Colors.purple.shade400, Colors.purple.shade500, _backgroundAnimation.value)!,
-                      Color.lerp(Colors.deepPurple.shade400, Colors.deepPurple.shade500, _backgroundAnimation.value)!,
-                      Color.lerp(Colors.indigo.shade400, Colors.indigo.shade500, _backgroundAnimation.value)!,
+                      Color.lerp(
+                        Colors.pink.shade400,
+                        Colors.pink.shade500,
+                        _backgroundAnimation.value,
+                      )!,
+                      Color.lerp(
+                        Colors.purple.shade400,
+                        Colors.purple.shade500,
+                        _backgroundAnimation.value,
+                      )!,
+                      Color.lerp(
+                        Colors.deepPurple.shade400,
+                        Colors.deepPurple.shade500,
+                        _backgroundAnimation.value,
+                      )!,
+                      Color.lerp(
+                        Colors.indigo.shade400,
+                        Colors.indigo.shade500,
+                        _backgroundAnimation.value,
+                      )!,
                     ],
                     stops: [0.0, 0.3, 0.7, 1.0],
                   ),
@@ -222,7 +231,9 @@ class _DirectMessagesScreenState extends State<DirectMessagesScreen>
                           onPressed: () {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('New message feature coming soon!'),
+                                content: Text(
+                                  'New message feature coming soon!',
+                                ),
                                 backgroundColor: Colors.blue,
                               ),
                             );
@@ -244,7 +255,9 @@ class _DirectMessagesScreenState extends State<DirectMessagesScreen>
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(25),
-                        border: Border.all(color: Colors.white.withOpacity(0.3)),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.3),
+                        ),
                       ),
                       child: TextField(
                         controller: _searchController,
@@ -256,7 +269,9 @@ class _DirectMessagesScreenState extends State<DirectMessagesScreen>
                         style: TextStyle(color: Colors.white),
                         decoration: InputDecoration(
                           hintText: 'Search messages...',
-                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                          hintStyle: TextStyle(
+                            color: Colors.white.withOpacity(0.7),
+                          ),
                           border: InputBorder.none,
                           icon: Icon(Icons.search, color: Colors.white),
                           suffixIcon: _searchQuery.isNotEmpty
@@ -310,12 +325,17 @@ class _DirectMessagesScreenState extends State<DirectMessagesScreen>
                                 ),
                               ),
                               child: ListTile(
-                                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
                                 leading: Stack(
                                   children: [
                                     CircleAvatar(
                                       radius: 28,
-                                      backgroundImage: NetworkImage(conversation['userImage']),
+                                      backgroundImage: NetworkImage(
+                                        conversation['userImage'],
+                                      ),
                                     ),
                                     if (conversation['isOnline'])
                                       Positioned(
@@ -327,7 +347,10 @@ class _DirectMessagesScreenState extends State<DirectMessagesScreen>
                                           decoration: BoxDecoration(
                                             color: Colors.green,
                                             shape: BoxShape.circle,
-                                            border: Border.all(color: Colors.white, width: 2),
+                                            border: Border.all(
+                                              color: Colors.white,
+                                              width: 2,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -389,7 +412,10 @@ class _DirectMessagesScreenState extends State<DirectMessagesScreen>
                                       ),
                                     if (conversation['unreadCount'] > 0)
                                       Container(
-                                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
                                         decoration: BoxDecoration(
                                           color: Colors.red,
                                           shape: BoxShape.circle,
@@ -434,4 +460,4 @@ class _DirectMessagesScreenState extends State<DirectMessagesScreen>
       ),
     );
   }
-} 
+}
